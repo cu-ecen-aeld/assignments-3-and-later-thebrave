@@ -34,7 +34,9 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     echo "Checking out version ${KERNEL_VERSION}"
     git checkout ${KERNEL_VERSION}
 
-    # TODO: Add your kernel build steps here
+    make distclean
+    make defconfig CROSS_COMPILE=${CROSS_COMPILE} ARCH=${ARCH}
+    make CROSS_COMPILE=${CROSS_COMPILE} ARCH=${ARCH}
 fi
 
 echo "Adding the Image in outdir"
@@ -47,7 +49,13 @@ then
     sudo rm  -rf ${OUTDIR}/rootfs
 fi
 
-# TODO: Create necessary base directories
+mkdir ${OUTDIR}/rootfs/bin
+mkdir ${OUTDIR}/rootfs/dev
+mkdir ${OUTDIR}/rootfs/etc
+mkdir ${OUTDIR}/rootfs/lib
+mkdir ${OUTDIR}/rootfs/proc
+mkdir ${OUTDIR}/rootfs/sys
+mkdir ${OUTDIR}/rootfs/sbin
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/busybox" ]
@@ -55,12 +63,13 @@ then
 git clone git://busybox.net/busybox.git
     cd busybox
     git checkout ${BUSYBOX_VERSION}
-    # TODO:  Configure busybox
+    make defconfig CROSS_COMPILE=${CROSS_COMPILE}
 else
     cd busybox
 fi
 
 # TODO: Make and install busybox
+make install DESTDIR="${OUTDIR}/rootfs" CROSS_COMPILE=${CROSS_COMPILE}
 
 echo "Library dependencies"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
