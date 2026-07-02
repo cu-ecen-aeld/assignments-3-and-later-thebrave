@@ -34,9 +34,9 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     echo "Checking out version ${KERNEL_VERSION}"
     git checkout ${KERNEL_VERSION}
 
-    make distclean
-    make defconfig CROSS_COMPILE=${CROSS_COMPILE} ARCH=${ARCH}
-    make CROSS_COMPILE=${CROSS_COMPILE} ARCH=${ARCH}
+    make distclean KBUILD_BUILD_TIMESTAMP=""
+    make defconfig CROSS_COMPILE=${CROSS_COMPILE} ARCH=${ARCH} KBUILD_BUILD_TIMESTAMP="" CC="ccache ${CROSS_COMPILE}gcc"
+    make -j4 CROSS_COMPILE=${CROSS_COMPILE} ARCH=${ARCH} KBUILD_BUILD_TIMESTAMP="" CC="ccache ${CROSS_COMPILE}gcc"
 fi
 
 echo "Adding the Image in outdir"
@@ -49,27 +49,27 @@ then
     sudo rm  -rf ${OUTDIR}/rootfs
 fi
 
-mkdir ${OUTDIR}/rootfs/bin
-mkdir ${OUTDIR}/rootfs/dev
-mkdir ${OUTDIR}/rootfs/etc
-mkdir ${OUTDIR}/rootfs/lib
-mkdir ${OUTDIR}/rootfs/proc
-mkdir ${OUTDIR}/rootfs/sys
-mkdir ${OUTDIR}/rootfs/sbin
+mkdir "${OUTDIR}/rootfs/bin"
+mkdir "${OUTDIR}/rootfs/dev"
+mkdir "${OUTDIR}/rootfs/etc"
+mkdir "${OUTDIR}/rootfs/lib"
+mkdir "${OUTDIR}/rootfs/proc"
+mkdir "${OUTDIR}/rootfs/sys"
+mkdir "${OUTDIR}/rootfs/sbin"
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/busybox" ]
 then
-git clone git://busybox.net/busybox.git
+    git clone git://busybox.net/busybox.git
     cd busybox
     git checkout ${BUSYBOX_VERSION}
-    make defconfig CROSS_COMPILE=${CROSS_COMPILE}
 else
     cd busybox
 fi
 
 # TODO: Make and install busybox
-make install DESTDIR="${OUTDIR}/rootfs" CROSS_COMPILE=${CROSS_COMPILE}
+make defconfig CROSS_COMPILE=${CROSS_COMPILE} CC="ccache ${CROSS_COMPILE}gcc"
+make install DESTDIR="${OUTDIR}/rootfs" CROSS_COMPILE=${CROSS_COMPILE} CC="ccache ${CROSS_COMPILE}gcc"
 
 echo "Library dependencies"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
