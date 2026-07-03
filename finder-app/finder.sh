@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Accepts the following runtime arguments: the first argument is a path to a directory on the filesystem, 
 # referred to below as filesdir; the second argument is a text string which will be searched within these 
@@ -22,7 +22,7 @@ elif [ ! -d "${1}" ]; then
   exit 1
 fi
 
-x="`find $1 -type f | wc --lines`"
-y="`find $1 -type f | xargs grep -c "$2" | wc --lines`"
+x="`find $1 -type f | wc -l`"
+y="`find $1 -type f | xargs grep -c "$2" | wc -l`"
 
 echo "The number of files are $x and the number of matching lines are $y"
