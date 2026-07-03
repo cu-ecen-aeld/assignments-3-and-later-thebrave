@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <pthread.h>
+#include <stdint.h>
 
 /**
  * This structure should be dynamically allocated and passed as
@@ -19,6 +20,10 @@ struct thread_data{
      * Set to true if the thread completed with success, false
      * if an error occurred.
      */
+    uint32_t wait_to_obtain_ms;
+    uint32_t wait_to_release_ms;
+    pthread_mutex_t *mutex;
+    
     bool thread_complete_success;
 };
 
