@@ -1,4 +1,4 @@
-# Makefile for writer.c
+# Makefile for aesdsocket.c
 # Supports cross-compilation. Usage: make CROSS_COMPILE=aarch64-none-linux-gnu-
 
 # Use the CROSS_COMPILE prefix for the compiler if provided, otherwise default to gcc
@@ -7,7 +7,7 @@ CFLAGS ?= -Wall -Werror
 LDFLAGS ?=
 
 # The name of the final executable
-TARGET = writer
+TARGET = aesdsocket
 
 # Default target
 all: $(TARGET)
