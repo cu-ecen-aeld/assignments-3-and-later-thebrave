@@ -4,6 +4,8 @@ project(aesdsocket_app C)
 # Define the executable name and its source file
 add_executable(aesdsocket aesdsocket.c)
 
+target_compile_options(aesdsocket PRIVATE -Wall -Werror)
+
 # Enable ASan and UBSan for Debug builds
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_options(aesdsocket PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)

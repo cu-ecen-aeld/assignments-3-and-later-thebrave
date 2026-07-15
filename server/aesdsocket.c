@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/syslog.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -30,7 +31,7 @@ void print_ipv4_info(struct sockaddr *addr, const char *prefix) {
   if (inet_ntop(AF_INET, &(ipv4->sin_addr), ip_str, INET_ADDRSTRLEN) != NULL) {
     // Convert port from network to host byte order
     uint16_t port = ntohs(ipv4->sin_port);
-    printf("%s %s:%d\n", prefix, ip_str, port);
+    // printf("%s %s:%d\n", prefix, ip_str, port);
     syslog(LOG_INFO, "%s %s:%d", prefix, ip_str, port);
   } else {
     perror("inet_ntop");
@@ -60,6 +61,12 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+  if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) <
+      0) {
+    perror("setsockopt(SO_REUSEADDR) failed");
+    return -1;
+  }
+
   struct addrinfo hints;
   struct addrinfo *result;
 
@@ -81,6 +88,24 @@ int main(int argc, char *argv[]) {
   }
   freeaddrinfo(result);
 
+  // Check if should daemonize
+  if (argc > 1 && strcmp(argv[1], "-d") == 0) {
+    pid_t pid = fork();
+    if (pid < 0) {
+      perror("fork");
+      goto close_socket;
+    } else if (pid > 0) {
+      exit(EXIT_SUCCESS);
+    }
+
+    setsid();
+    chdir("/");
+    umask(0);
+    // close(STDIN_FILENO);
+    // close(STDOUT_FILENO);
+    // close(STDERR_FILENO);
+  }
+
   status = listen(sockfd, 0);
   if (status == -1) {
     perror("listen");
@@ -94,7 +119,8 @@ int main(int argc, char *argv[]) {
   while (!should_die) {
     int cnx_fd = accept(sockfd, &cnx_addr, &cnx_addrlen);
     if (cnx_fd == -1) {
-      if (errno == EINTR) break; 
+      if (errno == EINTR)
+        break;
       perror("accept");
       status = -1;
       goto close_socket;
@@ -103,7 +129,7 @@ int main(int argc, char *argv[]) {
 
     // Open the output file, creating this file if it doesn’t exist
     output_file = open("/var/tmp/aesdsocketdata", O_RDWR | O_CREAT | O_APPEND,
-             S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+                       S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (output_file == -1) {
       perror("open");
       close(cnx_fd);
@@ -113,22 +139,21 @@ int main(int argc, char *argv[]) {
 
     // Socket is open, loop until stream ends
     char *buffer = NULL;
-    off_t file_size = 0;
     char *tmp_buffer = malloc(SMALL_BUF_SIZE);
     memset(tmp_buffer, 0, SMALL_BUF_SIZE);
 
     while (!should_die) {
       memset(tmp_buffer, 0, SMALL_BUF_SIZE);
-      printf("[d] Blocking read\n");
+      // printf("[d] Blocking read\n");
 
       // Blocking read from the socket
       ssize_t bytes_read = read(cnx_fd, tmp_buffer, SMALL_BUF_SIZE - 1);
       if (bytes_read < 1) {
-        printf("[d] Connection closed\n");
+        // printf("[d] Connection closed\n");
         break;
       }
 
-      printf("[d] Received %zd bytes: \"%s\"\n", bytes_read, tmp_buffer);
+      // printf("[d] Received %zd bytes: \"%s\"\n", bytes_read, tmp_buffer);
 
       // Do I need to initialize a buffer ?
       if (buffer == NULL) {
@@ -142,48 +167,46 @@ int main(int argc, char *argv[]) {
         buffer[strlen(buffer)] = '\0';
       }
 
-      printf("[d] Current buffer %zd bytes: \"%s\"\n", strlen(buffer), buffer);
+      // printf("[d] Current buffer %zd bytes: \"%s\"\n", strlen(buffer), buffer);
 
       // If there is a \n in the string,
       char *pos = strchr(buffer, '\n');
       if (pos != NULL) {
-        printf("[d] Found a newline\n");
+        // printf("[d] Found a newline\n");
         ssize_t len = pos - buffer + 1; // Include newline
         ssize_t bytes_written = write(output_file, buffer, len);
         if (bytes_written < 1) {
           perror("write");
           goto inner_cleanup;
         }
-        file_size += len;
 
         assert(bytes_written == len);
-        printf("[d] Wrote %zd bytes to file\n", bytes_written);
+        // printf("[d] Wrote %zd bytes to file\n", bytes_written);
         break;
       }
     }
     
-    if (buffer) {
-        free(buffer);
-        buffer = NULL;
-    }
+    // Cleanup
+    free(buffer);
+    buffer = NULL;
 
-    printf("[d] Preparing to write to file\n");
+    // printf("[d] Preparing to write to file\n");
     off_t res = lseek(output_file, 0, SEEK_SET);
     if (res == -1) {
       perror("lseek");
       goto inner_cleanup;
     }
-    printf("[d] Position %zd bytes to file\n", res);
+    // printf("[d] Position %zd bytes to file\n", res);
 
     // Copy Loop
     ssize_t bytes_read, bytes_written;
 
-    printf("[d] Write loop\n");
+    // printf("[d] Write loop\n");
     while (true) {
       memset(tmp_buffer, 0, SMALL_BUF_SIZE);
 
       bytes_read = read(output_file, tmp_buffer, SMALL_BUF_SIZE);
-      printf("[d] Read %zd bytes\n", bytes_read);
+      // printf("[d] Read %zd bytes\n", bytes_read);
       if (bytes_read == 0) {
         // EOF
         break;
@@ -197,7 +220,7 @@ int main(int argc, char *argv[]) {
       while (total_written < bytes_read) {
         bytes_written = write(cnx_fd, tmp_buffer + total_written,
                               bytes_read - total_written);
-        printf("[d] Wrote %zd/%zd bytes\n", bytes_written, total_written);
+        // printf("[d] Wrote %zd/%zd bytes\n", bytes_written, total_written);
 
         if (bytes_written < 0) {
           // If interrupted by signal, retry; otherwise handle error
@@ -209,14 +232,17 @@ int main(int argc, char *argv[]) {
       }
     }
 
-inner_cleanup:
+  inner_cleanup:
     free(tmp_buffer);
     // Close connexion
     close(cnx_fd);
-    close(output_file);
-    printf("[d] Done writing\n");
+
+    // printf("[d] Done writing\n");
     print_ipv4_info(&cnx_addr, "Closed connection from");
   }
+
+  close(output_file);
+  remove("/var/tmp/aesdsocketdata");
 
 close_socket:
   close(sockfd);
