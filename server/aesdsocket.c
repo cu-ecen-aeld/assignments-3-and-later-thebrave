@@ -31,7 +31,6 @@ void print_ipv4_info(struct sockaddr *addr, const char *prefix) {
   if (inet_ntop(AF_INET, &(ipv4->sin_addr), ip_str, INET_ADDRSTRLEN) != NULL) {
     // Convert port from network to host byte order
     uint16_t port = ntohs(ipv4->sin_port);
-    // printf("%s %s:%d\n", prefix, ip_str, port);
     syslog(LOG_INFO, "%s %s:%d", prefix, ip_str, port);
   } else {
     perror("inet_ntop");
@@ -67,26 +66,19 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  struct addrinfo hints;
-  struct addrinfo *result;
+  struct sockaddr_in server_addr;
+  memset(&server_addr, 0, sizeof(server_addr));
+  server_addr.sin_family = AF_INET;
+  server_addr.sin_port = htons(9000);
+  server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family = AF_INET;       /* Allow IPv4 or IPv6 */
-  hints.ai_socktype = SOCK_STREAM; /* Datagram socket */
-  int status = getaddrinfo("127.0.0.1", "9000", &hints, &result);
+  int status =
+      bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
 
-  if (status != 0) {
-    perror("getaddrinfo");
-    status = -1;
-    goto close_socket;
-  }
-  status = bind(sockfd, result->ai_addr, result->ai_addrlen);
   if (status == -1) {
     perror("bind");
-    freeaddrinfo(result);
     goto close_socket;
   }
-  freeaddrinfo(result);
 
   // Check if should daemonize
   if (argc > 1 && strcmp(argv[1], "-d") == 0) {
@@ -106,7 +98,7 @@ int main(int argc, char *argv[]) {
     // close(STDERR_FILENO);
   }
 
-  status = listen(sockfd, 0);
+  status = listen(sockfd, 10);
   if (status == -1) {
     perror("listen");
     goto close_socket;
@@ -119,8 +111,7 @@ int main(int argc, char *argv[]) {
   while (!should_die) {
     int cnx_fd = accept(sockfd, &cnx_addr, &cnx_addrlen);
     if (cnx_fd == -1) {
-      if (errno == EINTR)
-        break;
+      if (errno == EINTR) break;
       perror("accept");
       status = -1;
       goto close_socket;
@@ -144,16 +135,17 @@ int main(int argc, char *argv[]) {
 
     while (!should_die) {
       memset(tmp_buffer, 0, SMALL_BUF_SIZE);
-      // printf("[d] Blocking read\n");
+      syslog(LOG_INFO, "[d] Blocking read");
 
       // Blocking read from the socket
       ssize_t bytes_read = read(cnx_fd, tmp_buffer, SMALL_BUF_SIZE - 1);
       if (bytes_read < 1) {
-        // printf("[d] Connection closed\n");
+        syslog(LOG_INFO, "[d] Connection closed");
         break;
       }
 
-      // printf("[d] Received %zd bytes: \"%s\"\n", bytes_read, tmp_buffer);
+      syslog(LOG_INFO, "[d] Received %zd bytes: \"%s\"", bytes_read,
+             tmp_buffer);
 
       // Do I need to initialize a buffer ?
       if (buffer == NULL) {
@@ -167,13 +159,14 @@ int main(int argc, char *argv[]) {
         buffer[strlen(buffer)] = '\0';
       }
 
-      // printf("[d] Current buffer %zd bytes: \"%s\"\n", strlen(buffer), buffer);
+      syslog(LOG_INFO, "[d] Current buffer %zd bytes: \"%s\"", strlen(buffer),
+             buffer);
 
       // If there is a \n in the string,
       char *pos = strchr(buffer, '\n');
       if (pos != NULL) {
-        // printf("[d] Found a newline\n");
-        ssize_t len = pos - buffer + 1; // Include newline
+        syslog(LOG_INFO, "[d] Found a newline");
+        ssize_t len = pos - buffer + 1;  // Include newline
         ssize_t bytes_written = write(output_file, buffer, len);
         if (bytes_written < 1) {
           perror("write");
@@ -181,32 +174,32 @@ int main(int argc, char *argv[]) {
         }
 
         assert(bytes_written == len);
-        // printf("[d] Wrote %zd bytes to file\n", bytes_written);
+        syslog(LOG_INFO, "[d] Wrote %zd bytes to file", bytes_written);
         break;
       }
     }
-    
+
     // Cleanup
     free(buffer);
     buffer = NULL;
 
-    // printf("[d] Preparing to write to file\n");
+    syslog(LOG_INFO, "[d] Preparing to write to file");
     off_t res = lseek(output_file, 0, SEEK_SET);
     if (res == -1) {
       perror("lseek");
       goto inner_cleanup;
     }
-    // printf("[d] Position %zd bytes to file\n", res);
+    syslog(LOG_INFO, "[d] Position %zd bytes to file", res);
 
     // Copy Loop
     ssize_t bytes_read, bytes_written;
 
-    // printf("[d] Write loop\n");
+    syslog(LOG_INFO, "[d] Write loop");
     while (true) {
       memset(tmp_buffer, 0, SMALL_BUF_SIZE);
 
       bytes_read = read(output_file, tmp_buffer, SMALL_BUF_SIZE);
-      // printf("[d] Read %zd bytes\n", bytes_read);
+      syslog(LOG_INFO, "[d] Read %zd bytes", bytes_read);
       if (bytes_read == 0) {
         // EOF
         break;
@@ -220,12 +213,12 @@ int main(int argc, char *argv[]) {
       while (total_written < bytes_read) {
         bytes_written = write(cnx_fd, tmp_buffer + total_written,
                               bytes_read - total_written);
-        // printf("[d] Wrote %zd/%zd bytes\n", bytes_written, total_written);
+        syslog(LOG_INFO, "[d] Wrote %zd/%zd bytes", bytes_written,
+               total_written);
 
         if (bytes_written < 0) {
           // If interrupted by signal, retry; otherwise handle error
-          if (errno == EINTR)
-            continue;
+          if (errno == EINTR) continue;
           goto inner_cleanup;
         }
         total_written += bytes_written;
@@ -237,7 +230,7 @@ int main(int argc, char *argv[]) {
     // Close connexion
     close(cnx_fd);
 
-    // printf("[d] Done writing\n");
+    syslog(LOG_INFO, "[d] Done writing");
     print_ipv4_info(&cnx_addr, "Closed connection from");
   }
 
