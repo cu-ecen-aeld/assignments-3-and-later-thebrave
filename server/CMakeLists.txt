@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(aesdsocket_app C)
 
 # Define the executable name and its source file
-add_executable(aesdsocket aesdsocket.c)
+add_executable(aesdsocket aesdsocket.c thr_cnx.c thr_tim.c util.c)
 
 target_compile_options(aesdsocket PRIVATE -Wall -Werror)
 
