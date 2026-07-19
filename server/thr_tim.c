@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "thr_cst.h"
+#include "util.h"
 
 void timer_handler(union sigval sv) {
   char timestamp[SMALL_BUF_SIZE];
@@ -20,13 +21,15 @@ void timer_handler(union sigval sv) {
   assert(args->output_file != 0);
 
   pthread_mutex_lock(args->file_mutex);
-  syslog(LOG_INFO, "Timer triggered, writing to file");
+  trace_log(LOG_INFO, "Timer triggered, writing to file");
   // Write the current timestamp to the output file
   time_t now = time(NULL);
   struct tm *tm = localtime(&now);
 
   if (0 != strftime(timestamp, SMALL_BUF_SIZE, "timestamp:%a, %d %b %Y %T %z\n", tm)) {
     write(args->output_file, timestamp, strlen(timestamp));
+  } else {
+    trace_log(LOG_ERR, "strftime failed");
   }
 
   pthread_mutex_unlock(args->file_mutex);

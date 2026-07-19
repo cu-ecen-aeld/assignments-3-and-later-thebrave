@@ -33,10 +33,10 @@ SLIST_HEAD(slisthead, entry);
 
 static void signal_handler(int signo) {
   if (signo == SIGINT || signo == SIGTERM) {
-    syslog(LOG_INFO, "Caught signal, exiting");
+    trace_log(LOG_INFO, "Caught signal, exiting");
     should_die = true;
   } else {
-    syslog(LOG_ERR, "Caught unknown signal %d", signo);
+    trace_log(LOG_ERR, "Caught unknown signal %d", signo);
   }
 }
 
@@ -96,9 +96,10 @@ int main(int argc, char *argv[]) {
     setsid();
     chdir("/");
     umask(0);
-    close(STDIN_FILENO);
-    close(STDOUT_FILENO);
-    close(STDERR_FILENO);
+
+    // close(STDIN_FILENO);
+    // close(STDOUT_FILENO);
+    // close(STDERR_FILENO);
   }
 
   status = listen(sockfd, 10);
@@ -162,11 +163,12 @@ int main(int argc, char *argv[]) {
     free(n1);
   }
 
-  close(output_file);
-  remove("/var/tmp/aesdsocketdata");
   status = 0;
 
 close_socket:
+  close(output_file);
+  remove("/var/tmp/aesdsocketdata");
+
   close(sockfd);
     timer_delete(timerid);
   if(output_args != NULL) {

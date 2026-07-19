@@ -24,16 +24,16 @@ void *thr_cnx(void *arg) {
 
   while (true) {
     memset(tmp_buffer, 0, SMALL_BUF_SIZE);
-    syslog(LOG_INFO, "[d] Blocking read");
+    trace_log(LOG_INFO, "[d] Blocking read");
 
     // Blocking read from the socket
     ssize_t bytes_read = read(args->cnx_fd, tmp_buffer, SMALL_BUF_SIZE - 1);
     if (bytes_read < 1) {
-      syslog(LOG_INFO, "[d] Connection closed");
+      trace_log(LOG_INFO, "[d] Connection closed");
       break;
     }
 
-    syslog(LOG_INFO, "[d] Received %zd bytes: \"%s\"", bytes_read, tmp_buffer);
+    trace_log(LOG_INFO, "[d] Received %zd bytes: \"%s\"", bytes_read, tmp_buffer);
 
     // Do I need to initialize a buffer ?
     if (buffer == NULL) {
@@ -47,13 +47,13 @@ void *thr_cnx(void *arg) {
       buffer[strlen(buffer)] = '\0';
     }
 
-    syslog(LOG_INFO, "[d] Current buffer %zd bytes: \"%s\"", strlen(buffer),
+    trace_log(LOG_INFO, "[d] Current buffer %zd bytes: \"%s\"", strlen(buffer),
            buffer);
 
     // If there is a \n in the string,
     char *pos = strchr(buffer, '\n');
     if (pos != NULL) {
-      syslog(LOG_INFO, "[d] Found a newline");
+      trace_log(LOG_INFO, "[d] Found a newline");
       ssize_t len = pos - buffer + 1;  // Include newline
       pthread_mutex_lock(args->file_mutex);
       ssize_t bytes_written = write(args->output_file, buffer, len);
@@ -63,7 +63,7 @@ void *thr_cnx(void *arg) {
       }
 
       assert(bytes_written == len);
-      syslog(LOG_INFO, "[d] Wrote %zd bytes to file", bytes_written);
+      trace_log(LOG_INFO, "[d] Wrote %zd bytes to file", bytes_written);
       break;
     }
   }
@@ -72,23 +72,23 @@ void *thr_cnx(void *arg) {
   free(buffer);
   buffer = NULL;
 
-  syslog(LOG_INFO, "[d] Preparing to write to file");
+  trace_log(LOG_INFO, "[d] Preparing to write to file");
   off_t res = lseek(args->output_file, 0, SEEK_SET);
   if (res == -1) {
     perror("lseek");
     goto inner_cleanup;
   }
-  syslog(LOG_INFO, "[d] Position %zd bytes to file", res);
+  trace_log(LOG_INFO, "[d] Position %zd bytes to file", res);
 
   // Copy Loop
   ssize_t bytes_read, bytes_written;
 
-  syslog(LOG_INFO, "[d] Write loop");
+  trace_log(LOG_INFO, "[d] Write loop");
   while (true) {
     memset(tmp_buffer, 0, SMALL_BUF_SIZE);
 
     bytes_read = read(args->output_file, tmp_buffer, SMALL_BUF_SIZE);
-    syslog(LOG_INFO, "[d] Read %zd bytes", bytes_read);
+    trace_log(LOG_INFO, "[d] Read %zd bytes", bytes_read);
     if (bytes_read == 0) {
       // EOF
       break;
@@ -102,7 +102,7 @@ void *thr_cnx(void *arg) {
     while (total_written < bytes_read) {
       bytes_written = write(args->cnx_fd, tmp_buffer + total_written,
                             bytes_read - total_written);
-      syslog(LOG_INFO, "[d] Wrote %zd/%zd bytes", bytes_written, total_written);
+      trace_log(LOG_INFO, "[d] Wrote %zd/%zd bytes", bytes_written, total_written);
 
       if (bytes_written < 0) {
         // If interrupted by signal, retry; otherwise handle error
@@ -119,7 +119,7 @@ inner_cleanup:
   // Close connexion
   close(args->cnx_fd);
 
-  syslog(LOG_INFO, "[d] Done writing");
+  trace_log(LOG_INFO, "[d] Done writing");
   print_ipv4_info(&args->cnx_addr, "Closed connection from");
   free(args);
 

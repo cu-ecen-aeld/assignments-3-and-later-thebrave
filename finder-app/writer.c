@@ -28,16 +28,16 @@ int main(int argc, char *argv[]) {
 
     int fd = open(writefile, O_CREAT | O_WRONLY | O_TRUNC, 0644);
     if (fd == -1) {
-        syslog(LOG_ERR, "Failed to open %s for writing: %s", writefile, strerror(errno));
+        trace_log(LOG_ERR, "Failed to open %s for writing: %s", writefile, strerror(errno));
         return 1;
     }
 
     ssize_t bytes_written = write(fd, writestr, strlen(writestr));
     if (bytes_written == -1) {
-        syslog(LOG_ERR, "Failed to write into %s: %s", writefile, strerror(errno));
+        trace_log(LOG_ERR, "Failed to write into %s: %s", writefile, strerror(errno));
         return 1;
     } else {
-        syslog(LOG_DEBUG, "Writing %s to %s", writestr, writefile);
+        trace_log(LOG_DEBUG, "Writing %s to %s", writestr, writefile);
     }
 
     close(fd);
