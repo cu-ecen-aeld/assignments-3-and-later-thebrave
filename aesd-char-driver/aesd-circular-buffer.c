@@ -8,13 +8,22 @@
  *
  */
 
+#include <assert.h>
+#include <stdbool.h>
 #ifdef __KERNEL__
 #include <linux/string.h>
 #else
 #include <string.h>
+#include <stdio.h>
 #endif
 
 #include "aesd-circular-buffer.h"
+
+#ifdef __KERNEL__
+#define AESD_DEBUG_PRINTF(...) do {} while (0)
+#else
+#define AESD_DEBUG_PRINTF(...) printf(__VA_ARGS__)
+#endif
 
 /**
  * @param buffer the buffer to search for corresponding offset.  Any necessary locking must be performed by caller.
@@ -24,14 +33,32 @@
  *      buffptr member corresponding to char_offset.  This value is only set when a matching char_offset is found
  *      in aesd_buffer.
  * @return the struct aesd_buffer_entry structure representing the position described by char_offset, or
- * NULL if this position is not available in the buffer (not enough data is written).
+ *      NULL if this position is not available in the buffer (not enough data is written).
  */
 struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct aesd_circular_buffer *buffer,
             size_t char_offset, size_t *entry_offset_byte_rtn )
 {
-    /**
-    * TODO: implement per description
-    */
+    AESD_DEBUG_PRINTF(">> aesd_circular_buffer_find_entry_offset_for_fpos char_offset=%zu\n", char_offset);
+    AESD_DEBUG_PRINTF("-- in=%hhu, out=%hhu, full=%s\n", buffer->in_offs, buffer->out_offs, buffer->full ? "true" : "false");
+    size_t siz=char_offset;
+    bool tick=buffer->full;
+    size_t index=buffer->out_offs;
+
+    while(tick || index != buffer->in_offs) {
+        if(tick) tick=false;
+
+        AESD_DEBUG_PRINTF("siz=%zu, entry[%zu].size=%zu\n", siz, index, buffer->entry[index].size);
+        if(siz < buffer->entry[index].size) {
+            *entry_offset_byte_rtn = siz;
+            AESD_DEBUG_PRINTF("<< aesd_circular_buffer_find_entry_offset_for_fpos search_success index=%zu\n", index);
+            return &buffer->entry[index];
+        }
+
+        siz -= buffer->entry[index].size;
+        index = (index + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+    }
+    
+    AESD_DEBUG_PRINTF("<< aesd_circular_buffer_find_entry_offset_for_fpos search_failed\n");
     return NULL;
 }
 
@@ -44,9 +71,23 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
 */
 void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_buffer_entry *add_entry)
 {
-    /**
-    * TODO: implement per description
-    */
+    AESD_DEBUG_PRINTF(">> aesd_circular_buffer_add_entry\n");
+    AESD_DEBUG_PRINTF("-- in=%hhu, out=%hhu, full=%s\n", buffer->in_offs, buffer->out_offs, buffer->full ? "true" : "false");
+
+    if(buffer->full) {
+        buffer->out_offs = (buffer->out_offs + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+        buffer->entry[buffer->in_offs] = *add_entry;
+        buffer->in_offs = buffer->out_offs;
+    } else {
+        buffer->entry[buffer->in_offs] = *add_entry;
+        buffer->in_offs = (buffer->in_offs + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+        if(buffer->in_offs == buffer->out_offs) {
+            buffer->full = true;
+        }
+    }
+    
+    AESD_DEBUG_PRINTF("-- in=%hhu, out=%hhu, full=%s\n", buffer->in_offs, buffer->out_offs, buffer->full ? "true" : "false");
+    AESD_DEBUG_PRINTF("<< aesd_circular_buffer_find_entry_offset_for_fpos\n");
 }
 
 /**
