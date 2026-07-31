@@ -29,18 +29,20 @@ struct aesd_dev aesd_device;
 int aesd_open(struct inode *inode, struct file *filp)
 {
     PDEBUG("open");
-    /**
-     * TODO: handle open
-     */
+
+    struct aesd_dev *dev;
+    dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
+    filp->private_data = dev; 
+
     return 0;
 }
 
 int aesd_release(struct inode *inode, struct file *filp)
 {
     PDEBUG("release");
-    /**
-     * TODO: handle release
-     */
+
+    // Nothing to do here, but we must have this function or the module will not load.
+
     return 0;
 }
 
@@ -52,6 +54,10 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     /**
      * TODO: handle read
      */
+
+     // Retrieve the device structure from the file pointer
+    struct aesd_dev *dev = filp->private_data;
+
     return retval;
 }
 
@@ -63,6 +69,47 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     /**
      * TODO: handle write
      */
+
+     // Retrieve the device structure from the file pointer
+    struct aesd_dev *dev = filp->private_data;
+
+    // If there is an incomplete write in progress (ie: write_buf != NULL), 
+    // then we need to append the new data to the existing write buffer
+    if(dev->write_buf != NULL) {
+        // Reallocate the write buffer to hold the new data
+        char *new_buf = krealloc(dev->write_buf, dev->write_buf_size + count, GFP_KERNEL);
+        if(new_buf == NULL) {
+            retval = -ENOMEM;
+            goto out;
+        }
+        dev->write_buf = new_buf;
+        copy_from_user(dev->write_buf + dev->write_buf_size, buf, count);
+        dev->write_buf_size += count;
+    } else {
+        // Allocate a new write buffer and copy the data into it
+        dev->write_buf = kmalloc(count, GFP_KERNEL);
+        if(dev->write_buf == NULL) {
+            retval = -ENOMEM;
+            goto out;
+        }
+        copy_from_user(dev->write_buf, buf, count);
+        dev->write_buf_size = count;
+    }
+
+    // Is the write complete ? Check if the last character is a newline
+    if(dev->write_buf[dev->write_buf_size - 1] == '\n') {
+        // Write is complete, add the entry to the circular buffer
+        struct aesd_buffer_entry new_entry;
+        new_entry.buffptr = dev->write_buf;
+        new_entry.size = dev->write_buf_size;
+
+        aesd_circular_buffer_add_entry(&dev->buffer, &new_entry);
+
+        // Reset the write buffer
+        dev->write_buf = NULL;
+        dev->write_buf_size = 0;
+    }
+
     return retval;
 }
 struct file_operations aesd_fops = {
@@ -103,6 +150,8 @@ int aesd_init_module(void)
     /**
      * TODO: initialize the AESD specific portion of the device
      */
+    aesd_circular_buffer_init(&aesd_device.buffer);
+    semaphore_init(&aesd_device.buffer_mutex, 1);
 
     result = aesd_setup_cdev(&aesd_device);
 
@@ -125,7 +174,6 @@ void aesd_cleanup_module(void)
 
     unregister_chrdev_region(devno, 1);
 }
-
 
 module_init(aesd_init_module);
 module_exit(aesd_cleanup_module);

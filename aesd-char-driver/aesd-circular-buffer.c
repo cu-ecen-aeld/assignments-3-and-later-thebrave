@@ -8,7 +8,6 @@
  *
  */
 
-#include <assert.h>
 #include <stdbool.h>
 #ifdef __KERNEL__
 #include <linux/string.h>

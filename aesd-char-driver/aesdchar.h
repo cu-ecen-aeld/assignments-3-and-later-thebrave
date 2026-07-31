@@ -31,6 +31,7 @@ struct aesd_dev
     struct cdev cdev;     /* Char device structure      */
     struct aesd_circular_buffer buffer; /* Circular buffer to store data */
     struct semaphore lock; /* Lock to protect access to the circular buffer */
+    char *write_buf; /* Buffer to store data being written */
 };
 
 
