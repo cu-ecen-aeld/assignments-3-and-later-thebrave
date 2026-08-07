@@ -66,7 +66,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 
 	if (entry == NULL) {
 		PDEBUG("No entry found for offset %lld", *f_pos);
-	    PDEBUG("<< aesd_read ret=0");
+		PDEBUG("<< aesd_read ret=0");
 		return 0; // No data to read
 	} else {
 		PDEBUG("Entry found for offset %lld: buffptr=%p, size=%zu, entry_offset_byte_rtn=%zu",
@@ -81,11 +81,11 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 		retval += entry->size;
 	} else {
 		PDEBUG("bug?: no data in entry");
-	    PDEBUG("<< aesd_read ret=-EFAULT");
+		PDEBUG("<< aesd_read ret=-EFAULT");
 		return -EFAULT;
 	}
 
-    *f_pos += retval;
+	*f_pos += retval;
 	PDEBUG("<< aesd_read ret=%zu, new fpos=%lld", retval, *f_pos);
 	return retval;
 }
@@ -153,11 +153,11 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 		PDEBUG("write is not complete, keep the write buffer for the next write");
 	}
 
-    retval = count;
-    
+	retval = count;
+
 out:
 	PDEBUG("<< aesd_write ret=%zu", retval);
-    *f_pos += retval;
+	*f_pos += retval;
 	return retval;
 }
 struct file_operations aesd_fops = {
@@ -166,6 +166,7 @@ struct file_operations aesd_fops = {
 	.write = aesd_write,
 	.open = aesd_open,
 	.release = aesd_release,
+	.llseek = default_llseek,
 };
 
 static int aesd_setup_cdev(struct aesd_dev *dev)
