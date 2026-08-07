@@ -2,9 +2,10 @@ cmake_minimum_required(VERSION 3.10)
 project(aesdsocket_app C)
 
 # Define the executable name and its source file
-add_executable(aesdsocket aesdsocket.c thr_cnx.c thr_tim.c util.c)
+add_executable(aesdsocket aesdsocket.c thr_cnx.c util.c)
 
 target_compile_options(aesdsocket PRIVATE -Wall -Werror)
+target_compile_definitions(aesdsocket PRIVATE USE_AESD_CHAR_DEVICE=1)
 
 # Enable ASan and UBSan for Debug builds
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
