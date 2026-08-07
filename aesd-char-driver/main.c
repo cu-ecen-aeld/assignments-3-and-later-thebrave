@@ -11,13 +11,16 @@
  *
  */
 
+#include <linux/semaphore.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/printk.h>
 #include <linux/types.h>
 #include <linux/cdev.h>
 #include <linux/fs.h> // file_operations
+
 #include "aesdchar.h"
+
 int aesd_major =   0; // use dynamic major
 int aesd_minor =   0;
 
@@ -56,7 +59,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
      */
 
      // Retrieve the device structure from the file pointer
-    struct aesd_dev *dev = filp->private_data;
+    // struct aesd_dev *dev = filp->private_data;
 
     return retval;
 }
@@ -83,7 +86,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
             goto out;
         }
         dev->write_buf = new_buf;
-        copy_from_user(dev->write_buf + dev->write_buf_size, buf, count);
+        count = copy_from_user(dev->write_buf + dev->write_buf_size, buf, count);
         dev->write_buf_size += count;
     } else {
         // Allocate a new write buffer and copy the data into it
@@ -92,7 +95,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
             retval = -ENOMEM;
             goto out;
         }
-        copy_from_user(dev->write_buf, buf, count);
+        count = copy_from_user(dev->write_buf, buf, count);
         dev->write_buf_size = count;
     }
 
@@ -109,7 +112,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         dev->write_buf = NULL;
         dev->write_buf_size = 0;
     }
-
+out:
     return retval;
 }
 struct file_operations aesd_fops = {
@@ -151,7 +154,7 @@ int aesd_init_module(void)
      * TODO: initialize the AESD specific portion of the device
      */
     aesd_circular_buffer_init(&aesd_device.buffer);
-    semaphore_init(&aesd_device.buffer_mutex, 1);
+    sema_init(&aesd_device.lock, 1);
 
     result = aesd_setup_cdev(&aesd_device);
 
