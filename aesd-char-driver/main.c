@@ -18,6 +18,7 @@
 #include <linux/printk.h>
 #include <linux/semaphore.h>
 #include <linux/types.h>
+#include <linux/slab.h>   
 
 #include "aesdchar.h"
 

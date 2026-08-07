@@ -5,7 +5,7 @@
 NAME=aesdserver
 DIR=/root
 PIDFILE=/var/run/$NAME.pid
-DAEMON=/bin/aesdsocket
+DAEMON=/usr/bin/aesdsocket
 DAEMON_ARGS="-d"
 STOP_SIGNAL=INT
 USER=root
