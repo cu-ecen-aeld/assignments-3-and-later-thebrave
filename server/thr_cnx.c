@@ -9,6 +9,7 @@
 #include <sys/queue.h>
 #include <sys/syslog.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "thr_cst.h"
 #include "util.h"
@@ -56,7 +57,18 @@ void *thr_cnx(void *arg) {
       trace_log(LOG_INFO, "[d] Found a newline");
       ssize_t len = pos - buffer + 1;  // Include newline
       pthread_mutex_lock(args->file_mutex);
+
+#ifdef USE_AESD_CHAR_DEVICE
+      trace_log(LOG_INFO, "Using AESD char device for output");
+      // Open the output file, creating this file if it doesn’t exist
+      int output_file = open("/dev/aesdchar", O_RDWR);
+
+      ssize_t bytes_written = write(output_file, buffer, len);
+      close(output_file);
+#else
       ssize_t bytes_written = write(args->output_file, buffer, len);
+#endif
+
       if (bytes_written < 1) {
         perror("write");
         goto inner_cleanup;
@@ -72,6 +84,7 @@ void *thr_cnx(void *arg) {
   free(buffer);
   buffer = NULL;
 
+#ifndef USE_AESD_CHAR_DEVICE
   trace_log(LOG_INFO, "[d] Preparing to write to file");
   off_t res = lseek(args->output_file, 0, SEEK_SET);
   if (res == -1) {
@@ -79,15 +92,28 @@ void *thr_cnx(void *arg) {
     goto inner_cleanup;
   }
   trace_log(LOG_INFO, "[d] Position %zd bytes to file", res);
+#endif
 
   // Copy Loop
   ssize_t bytes_read, bytes_written;
 
   trace_log(LOG_INFO, "[d] Write loop");
+
+#ifdef USE_AESD_CHAR_DEVICE
+    trace_log(LOG_INFO, "Using AESD char device for output");
+    // Open the output file, creating this file if it doesn’t exist
+    int output_file = open("/dev/aesdchar", O_RDWR);
+#endif
+
   while (true) {
     memset(tmp_buffer, 0, SMALL_BUF_SIZE);
 
+#ifdef USE_AESD_CHAR_DEVICE
+    bytes_read = read(output_file, tmp_buffer, SMALL_BUF_SIZE);
+#else
     bytes_read = read(args->output_file, tmp_buffer, SMALL_BUF_SIZE);
+#endif
+
     trace_log(LOG_INFO, "[d] Read %zd bytes", bytes_read);
     if (bytes_read == 0) {
       // EOF
@@ -112,8 +138,13 @@ void *thr_cnx(void *arg) {
       total_written += bytes_written;
     }
   }
-
+  
 inner_cleanup:
+
+#ifdef USE_AESD_CHAR_DEVICE
+  close(output_file);
+#endif
+
   pthread_mutex_unlock(args->file_mutex);
   free(tmp_buffer);
   // Close connexion

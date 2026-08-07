@@ -10,7 +10,10 @@ struct thread_args {
   socklen_t cnx_addrlen;
 
   // Output file descriptor & sync primitive
+#ifndef USE_AESD_CHAR_DEVICE
   int output_file;
+#endif
+
   pthread_mutex_t *file_mutex;
 };
 

@@ -21,9 +21,6 @@
 #include "thr_cst.h"
 #include "util.h"
 
-#ifndef USE_AESD_CHAR_DEVICE
-#error "USE_AESD_CHAR_DEVICE must be defined"
-#endif
 
 bool should_die = false;
 
@@ -111,22 +108,18 @@ int main(int argc, char *argv[]) {
     goto close_socket;
   }
 
-#if USE_AESD_CHAR_DEVICE==1
-  trace_log(LOG_INFO, "Using AESD char device for output");
-  // Open the output file, creating this file if it doesn’t exist
-  int output_file = open("/dev/aesdchar", O_RDWR);
-#else
+#ifndef USE_AESD_CHAR_DEVICE
   trace_log(LOG_INFO, "Using /var/tmp/aesdsocketdata for output");
   // Open the output file, creating this file if it doesn’t exist
   int output_file = open("/var/tmp/aesdsocketdata", O_RDWR | O_CREAT | O_APPEND,
                          S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
-#endif
   if (output_file == -1) {
     perror("open");
     status = -1;
     goto close_socket;
   }
+#endif
 
   pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -134,7 +127,9 @@ int main(int argc, char *argv[]) {
     struct thread_args *args = malloc(sizeof(struct thread_args));
     args->cnx_addrlen = sizeof(struct sockaddr);
     args->file_mutex = &file_mutex;
+#ifndef USE_AESD_CHAR_DEVICE
     args->output_file = output_file;
+#endif
 
     args->cnx_fd = accept(sockfd, &args->cnx_addr, &args->cnx_addrlen);
     if (args->cnx_fd == -1) {
@@ -171,8 +166,8 @@ int main(int argc, char *argv[]) {
   status = 0;
 
 close_file:
+#ifndef USE_AESD_CHAR_DEVICE
   close(output_file);
-#if USE_AESD_CHAR_DEVICE!=1
   remove("/var/tmp/aesdsocketdata");
 #endif
 
@@ -181,6 +176,7 @@ close_socket:
   if(output_args != NULL) {
     free(output_args);
   }
+
   printf("Exiting with status %d\n", status);
   return status;
 }
